@@ -1,6 +1,7 @@
 import Authenticator from "../utils/Authenticator";
 import PinGenerator from "../utils/PinGenerator";
 import DataForwarder from "../utils/DataForwarder";
+import AnalyzeInfectedUser from '../utils/AnalyzeInfectedUser';
 
 // SUPPORTED_REGIONS from function-configuration.d.ts
 declare type SUPPORTED_REGIONS = "us-central1" | "us-east1" | "us-east4" | "europe-west1" | "europe-west2" | "asia-east2" | "asia-northeast1";
@@ -29,6 +30,12 @@ interface FunctionConfig {
     bucketForArchive: string
     logDBCollection: string
     dataForwarder: DataForwarder
+    analyzeInfectedUser: AnalyzeInfectedUser
+
+  }
+  notification: {
+    minDuration: number
+    minDistance: number
   }
 }
 

@@ -23,6 +23,7 @@ interface StreetPassRecord {
     contactId?: string,
     contactIdValidFrom?: number,
     contactIdValidTo?: number,
+    distance?: number
 }
 
 export default StreetPassRecord;

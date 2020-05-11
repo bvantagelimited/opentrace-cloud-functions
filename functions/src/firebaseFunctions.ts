@@ -1,5 +1,4 @@
 import * as functions from "firebase-functions";
-
 import config from "./config";
 
 /**
@@ -7,7 +6,7 @@ import config from "./config";
  * @param handler
  * @param runtimeOpt
  */
-export function https(
+export function callableHttps(
   handler: (uid: string, data: any, context: functions.https.CallableContext) => any | Promise<any>,
   runtimeOpt: functions.RuntimeOptions = {memory: '256MB', timeoutSeconds: 60}
 ): functions.HttpsFunction {
@@ -19,6 +18,16 @@ export function https(
 
       return handler(uid, data, context);
     });
+}
+
+export function requestHttps(
+  handler: any,
+  runtimeOpt: functions.RuntimeOptions = {memory: '256MB', timeoutSeconds: 60}
+): functions.HttpsFunction {
+  return functions
+    .runWith(runtimeOpt)
+    .region(...config.regions)
+    .https.onRequest(handler);
 }
 
 export function storage(

@@ -46,9 +46,9 @@ class CustomEncrypter {
     return buffer;
   }
 
-  encrypt(data: Buffer, ivLength = 16, authTagLength = 16): string[] {
+  encrypt(data: Buffer, ivLength = 16, authTagLength = 16, ivRandom = true): string[] {
     const dataB64 = data.toString('base64');
-    const iv = crypto.randomBytes(ivLength);
+    const iv = ivRandom ? crypto.randomBytes(ivLength) : Buffer.alloc(ivLength, 0);
     // @ts-ignore
     const cipher = crypto.createCipheriv(this.algorithm, this.key, iv, {authTagLength});
 
@@ -61,8 +61,8 @@ class CustomEncrypter {
     ];
   }
 
-  encryptAndEncode(data: Buffer, ivLength = 16, authTagLength = 16): Buffer {
-    const [cipherTextB64, ivB64, authTagB64] = this.encrypt(data, ivLength, authTagLength);
+  encryptAndEncode(data: Buffer, ivLength = 16, authTagLength = 16, ivRandom = true): Buffer {
+    const [cipherTextB64, ivB64, authTagB64] = this.encrypt(data, ivLength, authTagLength, ivRandom);
     return this.encode(cipherTextB64, ivB64, authTagB64);
   }
 

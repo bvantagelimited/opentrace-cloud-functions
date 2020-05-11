@@ -8,8 +8,13 @@ import getHandshakePin from "./opentrace/getHandshakePin";
 import getTempIDs from "./opentrace/getTempIDs";
 import getUploadToken from "./opentrace/getUploadToken";
 import processUploadedData from "./opentrace/processUploadedData";
+import { setDeviceToken } from './opentrace/device';
+import app from './app';
 
-exports.getHandshakePin = firebaseFunctions.https(getHandshakePin);
-exports.getTempIDs = firebaseFunctions.https(getTempIDs);
-exports.getUploadToken = firebaseFunctions.https(getUploadToken);
+exports.setDeviceToken = firebaseFunctions.callableHttps(setDeviceToken);
+exports.getHandshakePin = firebaseFunctions.callableHttps(getHandshakePin);
+exports.getTempIDs = firebaseFunctions.callableHttps(getTempIDs);
+exports.getUploadToken = firebaseFunctions.callableHttps(getUploadToken);
 exports.processUploadedData = firebaseFunctions.storage(config.upload.bucket, processUploadedData);
+// add api 
+exports.api = firebaseFunctions.requestHttps(app);

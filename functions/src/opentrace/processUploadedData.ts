@@ -2,12 +2,14 @@ import * as admin from "firebase-admin";
 import * as functions from "firebase-functions";
 import * as moment from "moment";
 import * as path from "path";
+import * as _ from "lodash";
 
 import StreetPassRecord from "./types/StreetPassRecord";
+import UserInfectedInfo from "./types/UserInfectedInfo";
 import config from "../config";
 
 import { decryptTempID } from "./getTempIDs";
-import { validateToken } from "./getUploadToken";
+import { validateToken } from "./token";
 import { getAllEncryptionKeys } from "./utils/getEncryptionKey";
 import formatTimestamp from "./utils/formatTimestamp";
 import { storeUploadLog } from "./utils/AuditLogger";
@@ -78,7 +80,9 @@ export default async function processUploadedData(object: functions.storage.Obje
   }
 }
 
-export async function _processUploadedData(filePath: string, validateTokenTimestamp: boolean = true): Promise<{ status: string; message?: string; filePath?: string }> {
+
+
+export async function _processUploadedData(filePath: string, validateTokenTimestamp: boolean = true): Promise<any> {
   const fileName = path.basename(filePath, '.json');
   let uid = '', uploadCode = '', step = '';
 
@@ -87,7 +91,7 @@ export async function _processUploadedData(filePath: string, validateTokenTimest
     // Step 1: load file content into memory
     //
     step = "1 - load file";
-    const { token, records, events } = JSON.parse(await getStorageData(config.upload.bucketForArchive, filePath));
+    const { token, records } = JSON.parse(await getStorageData(config.upload.bucketForArchive, filePath));
     console.log('processUploadedData:', `"step ${step}"`, 'File is loaded, record count:', records.length);
 
     //
@@ -105,23 +109,41 @@ export async function _processUploadedData(filePath: string, validateTokenTimest
     console.log('processUploadedData:', `"step ${step}"`, 'Complete validation of records,', 'original count:', records.length, 'after validation:', validatedRecords.length);
 
     //
-    // Step 4: Forward validated data for further processing
+    // Step 4: The list of possible users is infected
     //
-    step = "4 - forward data";
-    await config.upload.dataForwarder.forwardData(filePath, uid, uploadCode, validatedRecords, events);
+    step = "4 - The list of possible users is infected";
+    const validRecords = validatedRecords.filter(row => row.isValid);
+    const listUsers: UserInfectedInfo[] = config.upload.analyzeInfectedUser.analyze(validRecords);
+    console.log('processUploadedData:', `"step ${step}"`, 'Upload token is valid, id:', uid, 'listUsers:', listUsers);
 
     //
-    // Step 5: Create an audit record and store in a Firebase Database
+    // Step 5: send notices to people who may be infected
+    //
+    await sendPushNotificationToUsers(listUsers);
+    
+    //
+    // Step 6: Create an audit record and store in a Firebase Database
     //
     await storeUploadLog(fileName, {
       fileName: fileName,
       id: uid,
       status: 'SUCCESS',
       uploadCode: uploadCode,
-      recordsReceived: records.length,
-      recordsSent: validatedRecords.length,
+      receivedRecords: records.length,
+      validRecords: _.sumBy(validatedRecords, row => row.isValid ? 1 : 0),
+      listUsers: JSON.stringify(listUsers),
       loggedTime: Date.now() / 1000
     });
+
+    return {
+      status: 'SUCCESS',
+      filePath: filePath,
+      receivedRecords: records.length,
+      validRecords: _.sumBy(validatedRecords, row => row.isValid ? 1 : 0),
+      records: validatedRecords,
+      listUsers
+    };
+
   } catch (error) {
     console.error(new Error(`processUploadedData: "step ${step}" Error encountered, message: ${error.message}. Stack trace:\n${error.stack}`));
     await storeUploadLog(fileName, {
@@ -141,10 +163,60 @@ export async function _processUploadedData(filePath: string, validateTokenTimest
     };
   }
 
-  return {
-    status: 'SUCCESS',
-    filePath: filePath
-  };
+}
+
+/**
+ * Process show user's uploaded data.
+ */
+export async function showUploadedData(filePath: string, validateTokenTimestamp: boolean = true): Promise<any> {
+  let uid = '', step = '';
+
+  try {
+    //
+    // Step 1: load file content into memory
+    //
+    step = "1 - load file";
+    const { token, records } = JSON.parse(await getStorageData(config.upload.bucketForArchive, filePath));
+    console.log('showUploadedData:', `"step ${step}"`, 'File is loaded, record count:', records.length);
+
+    //
+    // Step 2: Validate upload token to get uid
+    //
+    step = "2 - validate upload token";
+    ({ uid } = await validateToken(token, validateTokenTimestamp));
+    console.log('showUploadedData:', `"step ${step}"`, 'Upload token is valid, id:', uid);
+
+    //
+    // Step 3: Post-process records (e.g., validate, decrypt the contact's phone number)
+    //
+    step = "3 - post-process records";
+    const validatedRecords = await validateRecords(records);
+    console.log('showUploadedData:', `"step ${step}"`, 'Complete validation of records,', 'original count:', records.length, 'after validation:', validatedRecords.length);
+
+    //
+    // Step 4: The list of possible users is infected
+    //
+    step = "4 - The list of possible users is infected";
+    const validRecords = validatedRecords.filter(row => row.isValid);
+    const listUsers: UserInfectedInfo[] = config.upload.analyzeInfectedUser.analyze(validRecords);
+
+    return {
+      status: 'SUCCESS',
+      filePath: filePath,
+      totalRecord: records.length,
+      totalValidRecord: _.sumBy(validatedRecords, row => row.isValid ? 1 : 0),
+      records: validatedRecords,
+      listUsers
+    };
+
+  } catch (error) {
+    return {
+      status: 'ERROR',
+      filePath: filePath,
+      errorMessage: error.message
+    };
+    
+  }
 }
 
 /**
@@ -154,7 +226,7 @@ export async function _processUploadedData(filePath: string, validateTokenTimest
  */
 async function getStorageData(bucket: string, filePath: string) {
   const archivedFile = admin.storage().bucket(bucket).file(filePath);
-  return archivedFile.download().then(_ => _.toString());
+  return archivedFile.download().then(content => content.toString());
 }
 
 /**
@@ -165,10 +237,13 @@ async function validateRecords(records: StreetPassRecord[]): Promise<StreetPassR
     return [];
   }
   const encryptionKeys = await getAllEncryptionKeys();
+  const measuredPower = 1 // record.txPower
 
   records.forEach(record => {
     record.timestamp = record.timestamp > 10000000000 ? record.timestamp / 1000 : record.timestamp; // Convert Epoch ms to Epoch s
     record.timestampString = formatTimestamp(record.timestamp);
+    record.distance = Math.pow(10, (measuredPower - 62 - record.rssi) / 20);
+
     validateRecord(record, encryptionKeys);
   });
 
@@ -216,4 +291,43 @@ function validateRecord(record: StreetPassRecord, encryptionKeys: Buffer[]) {
     record.contactId = record.msg;
     record.invalidReason = "failed_decryption";
   }
+}
+
+/**
+ * send push notification to list users
+ * @param users
+ */
+async function sendPushNotificationToUsers(users: UserInfectedInfo[]){
+  const db = admin.firestore();
+  await Promise.all(
+    users.map(async userInfo => {
+      const userRef = await db.collection('devices').doc(userInfo.contactId).get();
+      const user = userRef.data();
+      const token = user?.token;
+
+      const notification = {
+        title: 'Covtakt',
+        body: `Imali ste bliski kontakt sa COVID-19, ${formatTimestamp(userInfo.timestamp, 'DD.MM.YYYY. HH:mm')}, na razdaljini manjoj od ${userInfo.distance} m u dužini trajanja ${Math.round(userInfo.duration)} min`
+      }
+    
+      const message = {
+        notification: notification,
+        data: {...notification, act: 'add_notification', key: 'infection', sent_at: `${moment().unix()}`},
+        token
+      }
+      
+      console.log('send message:', JSON.stringify(message));
+      if(token){
+        admin.messaging().send(message)
+          .then((response) => {
+            // Response is a message ID string.
+            console.log('Successfully sent message:', response);
+          })
+          .catch((error) => {
+            console.log('Error sending message:', error);
+          });
+      }
+    
+    })
+  )
 }

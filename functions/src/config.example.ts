@@ -2,6 +2,7 @@ import FunctionConfig from "./opentrace/types/FunctionConfig";
 import Authenticator from "./opentrace/utils/Authenticator";
 import PinGenerator from "./opentrace/utils/PinGenerator";
 import DataForwarder from "./opentrace/utils/DataForwarder";
+import AnalyzeInfectedUser from './opentrace/utils/AnalyzeInfectedUser';
 
 const config: FunctionConfig = {
   projectId: "",
@@ -21,13 +22,18 @@ const config: FunctionConfig = {
   upload: {
     pinGenerator: new PinGenerator(),
     bucket: "upload-bucket", //
-    recordsDir: "records",
+    recordsDir: "streetPassRecords",
     testsDir: "tests",
     tokenValidityPeriod: 2, // in hours
     bucketForArchive: "archive-bucket",
     logDBCollection: "uploadLogs",
     dataForwarder: new DataForwarder(),
+    analyzeInfectedUser: new AnalyzeInfectedUser()
   },
+  notification: {
+    minDuration: 10,
+    minDistance: 2
+  }
 };
 
 export default config;
