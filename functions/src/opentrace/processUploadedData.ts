@@ -13,6 +13,7 @@ import { validateToken } from "./token";
 import { getAllEncryptionKeys } from "./utils/getEncryptionKey";
 import formatTimestamp from "./utils/formatTimestamp";
 import { storeUploadLog } from "./utils/AuditLogger";
+import { usedUploadCode } from "./uploadCode";
 
 /**
  * Process user's uploaded data.
@@ -101,6 +102,9 @@ export async function _processUploadedData(filePath: string, validateTokenTimest
     ({ uid, uploadCode } = await validateToken(token, validateTokenTimestamp));
     console.log('processUploadedData:', `"step ${step}"`, 'Upload token is valid, id:', uid);
 
+    // set code is used
+    await usedUploadCode(uploadCode);
+
     //
     // Step 3: Post-process records (e.g., validate, decrypt the contact's phone number)
     //
@@ -114,7 +118,7 @@ export async function _processUploadedData(filePath: string, validateTokenTimest
     step = "4 - The list of possible users is infected";
     const validRecords = validatedRecords.filter(row => row.isValid);
     const listUsers: UserInfectedInfo[] = config.upload.analyzeInfectedUser.analyze(validRecords);
-    console.log('processUploadedData:', `"step ${step}"`, 'Upload token is valid, id:', uid, 'listUsers:', listUsers);
+    console.log('processUploadedData:', `"step ${step}"`, 'Upload token is valid, id:', uid, 'listUsers:', JSON.stringify(listUsers));
 
     //
     // Step 5: send notices to people who may be infected
@@ -191,7 +195,7 @@ export async function showUploadedData(filePath: string, validateTokenTimestamp:
     //
     step = "3 - post-process records";
     const validatedRecords = await validateRecords(records);
-    console.log('showUploadedData:', `"step ${step}"`, 'Complete validation of records,', 'original count:', records.length, 'after validation:', validatedRecords.length);
+    console.log('showUploadedData:', `"step ${step}"`, 'Complete validation of records,', 'original count:', records.length);
 
     //
     // Step 4: The list of possible users is infected
@@ -300,7 +304,7 @@ function validateRecord(record: StreetPassRecord, encryptionKeys: Buffer[]) {
 async function sendPushNotificationToUsers(users: UserInfectedInfo[]){
   const db = admin.firestore();
   await Promise.all(
-    users.map(async userInfo => {
+    users.filter(row => row.isInfected).map(async userInfo => {
       const userRef = await db.collection('devices').doc(userInfo.contactId).get();
       const user = userRef.data();
       const token = user?.token;

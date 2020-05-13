@@ -27,10 +27,12 @@ interface FunctionConfig {
     recordsDir: string
     testsDir: string
     tokenValidityPeriod: number // in hours
+    codeValidityPeriod: number // in minutes
     bucketForArchive: string
     logDBCollection: string
     dataForwarder: DataForwarder
     analyzeInfectedUser: AnalyzeInfectedUser
+    adminApiKey: string
 
   }
   notification: {

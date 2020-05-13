@@ -10,3 +10,5 @@ node_modules/
 
 # Configuration files
 **/config.ts
+**/config.qc.ts
+**/config.prod.ts

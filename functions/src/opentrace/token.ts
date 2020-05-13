@@ -1,39 +1,39 @@
 
-import * as admin from "firebase-admin";
+// import * as admin from "firebase-admin";
 
 import config from '../config';
 import getEncryptionKey from "./utils/getEncryptionKey";
 import CustomEncrypter from "./utils/CustomEncrypter";
 import formatTimestamp from "./utils/formatTimestamp";
 
-export async function storeUploadCodes(strCode: any) {
-  // Prepare encrypter
-  const encryptionKey = await getEncryptionKey();
-  const customEncrypter = new CustomEncrypter(encryptionKey);
+// export async function storeUploadCodes(strCode: any) {
+//   // Prepare encrypter
+//   const encryptionKey = await getEncryptionKey();
+//   const customEncrypter = new CustomEncrypter(encryptionKey);
 
-  const uploadCodes = strCode.split(',');
+//   const uploadCodes = strCode.split(',');
 
-  const payload = Buffer.from(JSON.stringify(uploadCodes));
-  // Encode payload
-  const payloadData = customEncrypter.encryptAndEncode(payload);
+//   const payload = Buffer.from(JSON.stringify(uploadCodes));
+//   // Encode payload
+//   const payloadData = customEncrypter.encryptAndEncode(payload);
 
-  const writeResult = await admin.firestore().collection('codes').doc('uploadCode').set({uploadCode: payloadData.toString('base64')});
-  console.log('storeCodes:', 'upload code is stored successfully at', formatTimestamp(writeResult.writeTime.seconds));
-}
+//   const writeResult = await admin.firestore().collection('codes').doc('uploadCode').set({uploadCode: payloadData.toString('base64')});
+//   console.log('storeCodes:', 'upload code is stored successfully at', formatTimestamp(writeResult.writeTime.seconds));
+// }
 
-export async function retrieveUploadCodes() : Promise<string[]> {
-  const document = await admin.firestore().collection('codes').doc('uploadCode').get();
+// export async function retrieveUploadCodes() : Promise<string[]> {
+//   const document = await admin.firestore().collection('codes').doc('uploadCode').get();
 
-  // Prepare encrypter
-  const encryptionKey = await getEncryptionKey();
-  const customEncrypter = new CustomEncrypter(encryptionKey);
+//   // Prepare encrypter
+//   const encryptionKey = await getEncryptionKey();
+//   const customEncrypter = new CustomEncrypter(encryptionKey);
 
-  const payloadData = Buffer.from(document.get('uploadCode'), 'base64');
+//   const payloadData = Buffer.from(document.get('uploadCode'), 'base64');
 
-  const decryptedData = customEncrypter.decodeAndDecrypt(payloadData, [payloadData.length - 32, 16, 16]);
+//   const decryptedData = customEncrypter.decodeAndDecrypt(payloadData, [payloadData.length - 32, 16, 16]);
 
-  return JSON.parse(Buffer.from(decryptedData, 'base64').toString());
-}
+//   return JSON.parse(Buffer.from(decryptedData, 'base64').toString());
+// }
 
 /**
  * Validate upload token by decrypting it and checking if it's still withing validity period

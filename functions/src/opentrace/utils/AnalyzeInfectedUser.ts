@@ -20,15 +20,16 @@ export default class AnalyzeInfectedUser {
     const userRercords = _.groupBy(distanceRercords, record => record.contactId);
 
     const validUsers = _.map(userRercords, (rows, uid) => this.analyzeUserData(uid, rows));
-    return _.compact(validUsers);
+    return validUsers;
   }
 
   analyzeUserData(uid:string, rows: StreetPassRecord[]){
+    console.log('------> analyzeUserData uid:',uid);
     //
     // Step 1: group by timeline
     //
     let timelineRows = this.groupByUserTimeline(rows);
-
+    // console.log('groupByUserTimeline:', JSON.stringify(timelineRows));
     //
     // Step 2: validate timeline
     //
@@ -82,13 +83,24 @@ export default class AnalyzeInfectedUser {
       }
     })
 
+    // console.log('validateUserTimeline:', JSON.stringify(validRows));
     return _.filter(validRows, row => row.duration >= minDuration);
   }
 
   selectTimelineToPush(uid: string, rows: RangeTimeRecord[]) {
     const minDistance = config.notification.minDistance;
     const minTimeline = _.minBy(rows, record => record.minDistance);
-    if(!minTimeline) return null;
+    if(!minTimeline){
+      const res = {
+        contactId: uid,
+        timestamp: 0,
+        distance: 0,
+        duration: 0,
+        isInfected: false
+      }
+      console.log('check uid:', `${uid.substring(0, 10)}***`, 'result:', JSON.stringify(res), 'timeLine:', JSON.stringify(rows));
+      return res;
+    };
 
     const firstRecord = minTimeline.records[0];
     let userMinDistance = _.round(minTimeline.minDistance);
@@ -101,6 +113,8 @@ export default class AnalyzeInfectedUser {
       timestamp: firstRecord.timestamp,
       distance: userMinDistance,
       duration: Math.round(minTimeline.duration),
+      isInfected: true
+
     }
     console.log('check uid:', `${uid.substring(0, 10)}***`, 'result:', JSON.stringify(result));
     return result;

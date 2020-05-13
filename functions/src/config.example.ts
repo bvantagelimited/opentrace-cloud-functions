@@ -25,10 +25,12 @@ const config: FunctionConfig = {
     recordsDir: "streetPassRecords",
     testsDir: "tests",
     tokenValidityPeriod: 2, // in hours
+    codeValidityPeriod: 10, // in minutes
     bucketForArchive: "archive-bucket",
     logDBCollection: "uploadLogs",
     dataForwarder: new DataForwarder(),
-    analyzeInfectedUser: new AnalyzeInfectedUser()
+    analyzeInfectedUser: new AnalyzeInfectedUser(),
+    adminApiKey: 'gjnnbaa-eqsmtye-jthb8bx-gpqgnj0'
   },
   notification: {
     minDuration: 10,
